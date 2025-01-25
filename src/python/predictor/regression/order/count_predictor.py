@@ -3,11 +3,18 @@ from enum import Enum
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import (
+    RandomForestRegressor,
+    GradientBoostingRegressor,
+    AdaBoostRegressor,
+)
+from sklearn.linear_model import LinearRegression, ElasticNet
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
+from xgboost import XGBRegressor
 
 # Step 1: Prerequisites
 pd.set_option("display.max_rows", None)
@@ -19,6 +26,11 @@ class RegressionType(Enum):
     RANDOM_FOREST = "Random Forest"
     DECISION_TREE = "Decision Tree"
     GRADIENT_BOOSTING = "Gradient Boosting"
+    SVR = "Support Vector Regressor"
+    KNN = "K-Nearest Neighbors"
+    ELASTIC_NET = "ElasticNet"
+    ADA_BOOST = "AdaBoost"
+    XGBOOST = "XGBoost"
 
 
 def build_regression_model(type):
@@ -31,11 +43,21 @@ def build_regression_model(type):
             return DecisionTreeRegressor(random_state=42)
         case RegressionType.GRADIENT_BOOSTING:
             return GradientBoostingRegressor(random_state=42)
+        case RegressionType.SVR:
+            return SVR(kernel="rbf")  # Radial basis function kernel
+        case RegressionType.KNN:
+            return KNeighborsRegressor(n_neighbors=5)
+        case RegressionType.ELASTIC_NET:
+            return ElasticNet(alpha=0.1, l1_ratio=0.5, random_state=42)
+        case RegressionType.ADA_BOOST:
+            return AdaBoostRegressor(n_estimators=100, random_state=42)
+        case RegressionType.XGBOOST:
+            return XGBRegressor(n_estimators=100, random_state=42)
     pass
 
 
 # Step 2: Configurables
-file_path = "../../../../resources/data/orders/orders_emea_120_days.json"
+file_path = "../../../../resources/data/orders/orders_apac_30_days.json"
 
 fields = ["day_of_week", "holiday"]
 # fields = ['day_of_week', 'month', 'day_of_month', 'week_of_year', 'holiday']
@@ -117,7 +139,9 @@ future_df = pd.DataFrame(
 future_X = future_df[fields]
 future_df["predicted_count"] = best_model.predict(future_X)
 
-future_df["predicted_count"] = future_df["predicted_count"].clip(lower=0).round().astype(int)
+future_df["predicted_count"] = (
+    future_df["predicted_count"].clip(lower=0).round().astype(int)
+)
 
 # Step 10: Display original and future predictions
 print(f"\nData Frame: \n{df}")
