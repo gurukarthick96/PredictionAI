@@ -62,8 +62,11 @@ file_path = "../../../../resources/data/orders/orders_apac_30_days.json"
 fields = ["day_of_week", "holiday"]
 # fields = ['day_of_week', 'month', 'day_of_month', 'week_of_year', 'holiday']
 
-# regressionType = RegressionType.LINEAR
-# print(f'Regression Model: {regressionType.value}\n')
+add_missing_date = True
+# add_missing_date = False
+
+filter_outliers = True
+# filter_outliers = False
 
 # Step 3: Read Sample Data
 df = pd.read_json(file_path)
@@ -71,7 +74,17 @@ df = pd.read_json(file_path)
 # below conversion needed if loaded from csv
 # df['date'] = pd.to_datetime(df['date'], errors='coerce')
 
-# Step 4: Feature engineering: Extract day of the week, month, etc.
+# Step 4: Add missing dates if enabled
+if add_missing_date:
+    start_date = df["date"].min()
+    end_date = df["date"].max()
+
+    complete_dates = pd.date_range(start=start_date, end=end_date, freq="D")
+    df_complete = pd.DataFrame({"date": complete_dates})
+    df = pd.merge(df_complete, df, on="date", how="left")
+    df["count"] = df["count"].fillna(0).astype(int)
+
+# Step 5: Feature engineering: Extract day of the week, month, etc.
 if "day_of_week" in fields:
     df["day_of_week"] = df["date"].dt.dayofweek  # Monday=0, Sunday=6
 if "month" in fields:
@@ -83,16 +96,37 @@ if "week_of_year" in fields:
 if "holiday" in fields:
     df["holiday"] = df["date"].dt.dayofweek.isin([5, 6])  # True or False
 
-# Step 5: Define Target and features
-X = df[fields]
-y = df["count"]
+# Step 6: Detect Outliers using IQR (Inter-quartile Range) if enabled
+if filter_outliers:
+    y = df["count"]
 
-# Step 6: Split the data into training and testing sets
+    Q1 = y.quantile(0.25)
+    Q3 = y.quantile(0.75)
+    IQR = Q3 - Q1
+
+    # Define upper and lower bounds for outliers
+    lower_bound = max(Q1 - 1.5 * IQR, 0)
+    upper_bound = Q3 + 1.5 * IQR
+
+    print(f"Target's lower_bound: {lower_bound} and upper_bound: {upper_bound}\n")
+
+    # Filter out outliers from the dataset
+    df_filtered = df[(y >= lower_bound) & (y <= upper_bound)]
+    df_filtered_out = df[(y < lower_bound) | (y > upper_bound)]
+else:
+    df_filtered = df
+    df_filtered_out = False
+
+# Step 7: Define features and target again after filtering outliers
+X_filtered = df_filtered[fields]
+y_filtered = df_filtered["count"]
+
+# Step 8: Split the data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X_filtered, y_filtered, test_size=0.2, random_state=42
 )
 
-# Step 7: Train and analyze performance of all regression model
+# Step 9: Train and analyze performance of all regression model
 results = []
 for reg_type in RegressionType:
     model = build_regression_model(reg_type)
@@ -107,7 +141,7 @@ for reg_type in RegressionType:
 results_df = pd.DataFrame(results, columns=["Model", "RMSE", "MSE"])
 print(f"Regression Model Performance: \n{results_df}")
 
-# Step 8: Choose the best regression model
+# Step 10: Choose the best regression model
 best_model_type = results_df.loc[results_df["RMSE"].idxmin(), "Model"]
 best_model = build_regression_model(RegressionType(best_model_type))
 
@@ -115,7 +149,7 @@ best_model.fit(X_train, y_train)
 
 print(f"\nChosen Regression Model: {best_model_type}")
 
-# Step 9: Predict on future data
+# Step 11: Predict on future data
 future_dates = pd.date_range(start="2025-01-25", end="2025-02-24")
 future_df = pd.DataFrame(
     {
@@ -143,8 +177,10 @@ future_df["predicted_count"] = (
     future_df["predicted_count"].clip(lower=0).round().astype(int)
 )
 
-# Step 10: Display original and future predictions
-print(f"\nData Frame: \n{df}")
+# Step 12: Display original, filtered and future predictions
+print(f"\nOriginal Data Frame: \n{df}")
+
+print(f"\nFiltered Data Frame: \n{df_filtered_out}")
 
 print("\nFuture Predictions: ")
 print(future_df[["date", "predicted_count"] + fields])
