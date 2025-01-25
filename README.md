@@ -1,1 +1,1 @@
-# PredictonAI
+# PredictionAI
