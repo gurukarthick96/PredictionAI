@@ -1,17 +1,28 @@
 # Step 0: Imports
 from enum import Enum
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from sklearn.ensemble import (
     RandomForestRegressor,
     GradientBoostingRegressor,
     AdaBoostRegressor,
 )
-from sklearn.linear_model import LinearRegression, ElasticNet
-from sklearn.metrics import mean_squared_error
+from sklearn.kernel_ridge import KernelRidge
+from sklearn.linear_model import (
+    LinearRegression,
+    ElasticNet,
+    SGDRegressor,
+    Lasso,
+    Ridge,
+    BayesianRidge,
+)
+from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
@@ -31,6 +42,11 @@ class RegressionType(Enum):
     ELASTIC_NET = "ElasticNet"
     ADA_BOOST = "AdaBoost"
     XGBOOST = "XGBoost"
+    SGDR = "SGDRegressor"
+    LASSO = "Lasso"
+    RIDGE = "Ridge"
+    BAYESIAN_RIDGE = "BayesianRidge"
+    KERNEL_RIDGE = "KernelRidge"
 
 
 def build_regression_model(type):
@@ -53,6 +69,16 @@ def build_regression_model(type):
             return AdaBoostRegressor(n_estimators=100, random_state=42)
         case RegressionType.XGBOOST:
             return XGBRegressor(n_estimators=100, random_state=42)
+        case RegressionType.SGDR:
+            return SGDRegressor(max_iter=1000, tol=1e-3, random_state=42)
+        case RegressionType.LASSO:
+            return Lasso(random_state=42)
+        case RegressionType.RIDGE:
+            return Ridge(random_state=42)
+        case RegressionType.BAYESIAN_RIDGE:
+            return BayesianRidge()
+        case RegressionType.KERNEL_RIDGE:
+            return KernelRidge()
     pass
 
 
@@ -67,6 +93,9 @@ add_missing_date = True
 
 filter_outliers = True
 # filter_outliers = False
+
+show_plot = False
+scaler = False
 
 # Step 3: Read Sample Data
 df = pd.read_json(file_path)
@@ -117,6 +146,10 @@ else:
     df_filtered = df
     df_filtered_out = False
 
+if show_plot:
+    sns.heatmap(df_filtered.corr())
+    plt.show()
+
 # Step 7: Define features and target again after filtering outliers
 X_filtered = df_filtered[fields]
 y_filtered = df_filtered["count"]
@@ -125,6 +158,11 @@ y_filtered = df_filtered["count"]
 X_train, X_test, y_train, y_test = train_test_split(
     X_filtered, y_filtered, test_size=0.2, random_state=42
 )
+
+if scaler:
+    ss = StandardScaler()
+    X_train = ss.fit_transform(X_train)
+    X_test = ss.transform(X_test)
 
 # Step 9: Train and analyze performance of all regression model
 results = []
@@ -136,9 +174,10 @@ for reg_type in RegressionType:
 
     mse = mean_squared_error(y_test, y_pred)
     rmse = np.sqrt(mse)
-    results.append((reg_type.value, round(rmse, 2), round(mse, 2)))
+    r2 = r2_score(y_test, y_pred)
+    results.append((reg_type.value, round(rmse, 2), round(mse, 2), round(r2, 2)))
 
-results_df = pd.DataFrame(results, columns=["Model", "RMSE", "MSE"])
+results_df = pd.DataFrame(results, columns=["Model", "RMSE", "MSE", "R2"])
 print(f"Regression Model Performance: \n{results_df}")
 
 # Step 10: Choose the best regression model
